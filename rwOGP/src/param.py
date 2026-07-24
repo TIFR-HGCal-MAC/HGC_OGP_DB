@@ -220,14 +220,16 @@ def calc_full_angle(fdpoints, comp_type, is_second=False) -> float:
     """Calculate the angle deviation for PM/Modules with Full geometry."""
     sign = -1 if is_second else 1
     if comp_type == 'protomodule':
-        points_diff = fdpoints[4] - fdpoints[0] # vector from FD1 to FD5
-        angle = np.degrees(np.arctan2(
-            sign * points_diff[1],
-            sign * points_diff[0]))
-        if sign == 1:
-            logging.debug(f"Using Angle of FD1 -> FD4 for rotational offset angle: {angle}")
-        else:
-            logging.debug(f"Using Angle of FD4 -> FD1 for rotational offset angle: {angle}")
+        # FD1 and FD5 are perpendicular to the pin axis, so subtract 90° to normalise.
+        # Try both directions (FD1→FD5 and FD5→FD1) and pick the one closer to zero
+        # to resolve the 180° ambiguity when only these two fiducials are measured.
+        diff1 = fdpoints[4] - fdpoints[0]  # vector FD1 -> FD5
+        diff2 = fdpoints[0] - fdpoints[4]  # vector FD5 -> FD1
+        angle1 = np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - 90
+        angle2 = np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - 90
+        # Choose the angle closer to zero (i.e., resolve 180° ambiguity)
+        angle = angle1 if abs(angle1) < abs(angle2) else angle2
+        logging.debug(f"Using Angle of FD1 -> FD5 (perpendicular, -90° corrected) for rotational offset angle: {angle}")
     elif comp_type == 'module':
         #! sloppy fix
         # Compute both possible directions and pick the one with the smallest absolute angle
