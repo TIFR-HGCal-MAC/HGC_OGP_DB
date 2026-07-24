@@ -238,19 +238,20 @@ def calc_full_angle(fdpoints, comp_type, is_second=False, angle_pin=None) -> flo
     if comp_type == 'protomodule':
         # FD1 and FD5 are perpendicular to the pin axis, so subtract 90° to normalise.
         # Try both directions (FD1→FD5 and FD5→FD1) and normalise to [-180, 180] to
-        # avoid out-of-range values, then pick the one closer to zero to resolve the
-        # 180° ambiguity when only these two fiducials are measured.
+        # avoid out-of-range values, then pick the one closest to angle_pin to resolve
+        # the 180° ambiguity (falls back to closest-to-zero when angle_pin is absent).
         diff1 = fdpoints[4] - fdpoints[0]  # vector FD1 -> FD5
         diff2 = fdpoints[0] - fdpoints[4]  # vector FD5 -> FD1
         angle1 = (np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
         angle2 = (np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
-        # Choose the angle closer to zero (i.e., resolve 180° ambiguity)
-        if abs(angle1) < abs(angle2):
-            angle = angle1
-            logging.debug(f"Using Angle of FD1 -> FD5 (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
+        # Prefer the candidate closest to angle_pin (AngleOffset ≈ 0 for a well-placed protomodule).
+        # Fall back to closest-to-zero if angle_pin is not available.
+        if angle_pin is not None:
+            angle = angle1 if abs(angle1 - angle_pin) <= abs(angle2 - angle_pin) else angle2
         else:
-            angle = angle2
-            logging.debug(f"Using Angle of FD5 -> FD1 (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
+            angle = angle1 if abs(angle1) < abs(angle2) else angle2
+        direction = "FD1 -> FD5" if angle == angle1 else "FD5 -> FD1"
+        logging.debug(f"Using Angle of {direction} (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
     elif comp_type == 'module':
         diff1 = fdpoints[2] - fdpoints[5]
         diff2 = fdpoints[5] - fdpoints[2]
