@@ -107,8 +107,8 @@ ANGLE_CALC_CONFIG = {
             2: lambda fd3to1, fdpoints, *_: calc_HDfull_angle(fdpoints, None, True),
         },
         'LD': {
-            1: lambda fd3to1, fdpoints, comp_type: calc_full_angle(fdpoints, comp_type),
-            2: lambda fd3to1, fdpoints, comp_type: calc_full_angle(fdpoints, comp_type, True),
+            1: lambda fd3to1, fdpoints, comp_type, angle_pin=None: calc_full_angle(fdpoints, comp_type, angle_pin=angle_pin),
+            2: lambda fd3to1, fdpoints, comp_type, angle_pin=None: calc_full_angle(fdpoints, comp_type, True, angle_pin=angle_pin),
         }
     }
 }
@@ -216,8 +216,22 @@ def calc_five_angle(fdpoints, fd3to1, comp_type, is_second=False) -> float:
         return np.degrees(np.arctan2(sign * fd3to1[1], sign * fd3to1[0]))
 
 
-def calc_full_angle(fdpoints, comp_type, is_second=False) -> float:
-    """Calculate the angle deviation for PM/Modules with Full geometry."""
+def calc_full_angle(fdpoints, comp_type, is_second=False, angle_pin=None) -> float:
+    """Calculate the angle deviation for PM/Modules with Full geometry.
+
+    Parameters
+    ----------
+    fdpoints : np.ndarray
+        Array of fiducial points.
+    comp_type : str
+        Component type: 'protomodule' or 'module'.
+    is_second : bool, optional
+        True for position 2 (flips sign).
+    angle_pin : float, optional
+        Reference pin angle in degrees. When provided the candidate closest to
+        angle_pin is chosen (correct for all pin orientations). Falls back to
+        the candidate closest to zero when None.
+    """
     sign = -1 if is_second else 1
     if comp_type == 'protomodule':
         # FD1 and FD5 are perpendicular to the pin axis, so subtract 90° to normalise.
@@ -236,19 +250,19 @@ def calc_full_angle(fdpoints, comp_type, is_second=False) -> float:
             angle = angle2
             logging.debug(f"Using Angle of FD5 -> FD1 (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
     elif comp_type == 'module':
-        #! sloppy fix
-        # Compute both possible directions and pick the one with the smallest absolute angle
         diff1 = fdpoints[2] - fdpoints[5]
         diff2 = fdpoints[5] - fdpoints[2]
-        angle1 = np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - 90
-        angle2 = np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - 90
-        # Choose the angle closer to zero (i.e., -180/180 ambiguity)
-        if abs(angle1) < abs(angle2):
-            angle = angle1
+        # Normalise to [-180, 180] to avoid out-of-range values after the -90° correction
+        angle1 = (np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - 90 + 180) % 360 - 180
+        angle2 = (np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - 90 + 180) % 360 - 180
+        # Prefer the candidate closest to angle_pin (AngleOffset ≈ 0 for a well-placed module).
+        # Fall back to closest-to-zero if angle_pin is not available.
+        if angle_pin is not None:
+            chosen = angle1 if abs(angle1 - angle_pin) <= abs(angle2 - angle_pin) else angle2
         else:
-            angle = angle2
-        if sign == 1:
-            logging.debug(f"Using Angle of FD6 -> FD3 for rotational offset: {angle}")
+            chosen = angle1 if abs(angle1) <= abs(angle2) else angle2
+        angle = chosen
+        logging.debug(f"Using Module Full angle (FD3/FD6, -90° corrected, normalised): {angle}")
     else:
         logging.error(f"Component type {comp_type} not recognized for angle calculation.")
     return angle

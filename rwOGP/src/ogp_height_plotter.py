@@ -279,7 +279,7 @@ class PlotTool:
                 if isinstance(config, dict):
                     config = config[position]
 
-            angle_FD = config(FD3to1, FDPoints, CompType) # Angle of FD3 to FD1
+            angle_FD = config(FD3to1, FDPoints, CompType, angle_Pin) # Angle of FD3 to FD1
         except (KeyError, TypeError) as e:
             raise ValueError(f"Invalid configuration for geometry={geometry}, density={density}, position={position}")
 
