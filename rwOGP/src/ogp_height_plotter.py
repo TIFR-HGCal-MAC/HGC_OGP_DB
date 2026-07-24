@@ -189,12 +189,9 @@ class PlotTool:
         """
         points_to_average = FDPoints[fd_indices]
         if np.any(np.isnan(points_to_average)):
-            logging.warning(f"NaN values found in FD points {[i+1 for i in fd_indices]} used for default calculation.")
-            userinput = input(f"Would you like to continue with the available points? (y/n): ")
-            if userinput.lower() != 'y':
-                raise ValueMissingError("Exiting... Please check the FD points and try again.")
-            else:
-                points_to_average = FDPoints[~np.isnan(FDPoints).any(axis=1)]
+            logging.warning(f"NaN values found in FD points {[i+1 for i in fd_indices]} used for center calculation. "
+                            f"Continuing with available (non-NaN) points.")
+            points_to_average = FDPoints[~np.isnan(FDPoints).any(axis=1)]
         FDCenter = np.mean(points_to_average, axis=0)
         return FDCenter
 
@@ -282,7 +279,7 @@ class PlotTool:
                 if isinstance(config, dict):
                     config = config[position]
 
-            angle_FD = config(FD3to1, FDPoints, CompType) # Angle of FD3 to FD1
+            angle_FD = config(FD3to1, FDPoints, CompType, angle_Pin) # Angle of FD3 to FD1
         except (KeyError, TypeError) as e:
             raise ValueError(f"Invalid configuration for geometry={geometry}, density={density}, position={position}")
 
