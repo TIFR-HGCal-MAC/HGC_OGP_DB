@@ -223,13 +223,18 @@ def calc_full_angle(fdpoints, comp_type, is_second=False) -> float:
         # FD1 and FD5 are perpendicular to the pin axis, so subtract 90° to normalise.
         # Try both directions (FD1→FD5 and FD5→FD1) and pick the one closer to zero
         # to resolve the 180° ambiguity when only these two fiducials are measured.
+        PERPENDICULAR_CORRECTION_DEG = 90
         diff1 = fdpoints[4] - fdpoints[0]  # vector FD1 -> FD5
         diff2 = fdpoints[0] - fdpoints[4]  # vector FD5 -> FD1
-        angle1 = np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - 90
-        angle2 = np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - 90
+        angle1 = np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - PERPENDICULAR_CORRECTION_DEG
+        angle2 = np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - PERPENDICULAR_CORRECTION_DEG
         # Choose the angle closer to zero (i.e., resolve 180° ambiguity)
-        angle = angle1 if abs(angle1) < abs(angle2) else angle2
-        logging.debug(f"Using Angle of FD1 -> FD5 (perpendicular, -90° corrected) for rotational offset angle: {angle}")
+        if abs(angle1) < abs(angle2):
+            angle = angle1
+            logging.debug(f"Using Angle of FD1 -> FD5 (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
+        else:
+            angle = angle2
+            logging.debug(f"Using Angle of FD5 -> FD1 (perpendicular, -{PERPENDICULAR_CORRECTION_DEG}° corrected) for rotational offset angle: {angle}")
     elif comp_type == 'module':
         #! sloppy fix
         # Compute both possible directions and pick the one with the smallest absolute angle
