@@ -107,6 +107,7 @@ ANGLE_CALC_CONFIG = {
             2: lambda fd3to1, fdpoints, *_: calc_HDfull_angle(fdpoints, None, True),
         },
         'LD': {
+            # fd3to1 is unused here but kept for a uniform call signature across all entries
             1: lambda fd3to1, fdpoints, comp_type, angle_pin=None: calc_full_angle(fdpoints, comp_type, angle_pin=angle_pin),
             2: lambda fd3to1, fdpoints, comp_type, angle_pin=None: calc_full_angle(fdpoints, comp_type, True, angle_pin=angle_pin),
         }
@@ -233,15 +234,16 @@ def calc_full_angle(fdpoints, comp_type, is_second=False, angle_pin=None) -> flo
         the candidate closest to zero when None.
     """
     sign = -1 if is_second else 1
+    PERPENDICULAR_CORRECTION_DEG = 90
     if comp_type == 'protomodule':
         # FD1 and FD5 are perpendicular to the pin axis, so subtract 90° to normalise.
-        # Try both directions (FD1→FD5 and FD5→FD1) and pick the one closer to zero
-        # to resolve the 180° ambiguity when only these two fiducials are measured.
-        PERPENDICULAR_CORRECTION_DEG = 90
+        # Try both directions (FD1→FD5 and FD5→FD1) and normalise to [-180, 180] to
+        # avoid out-of-range values, then pick the one closer to zero to resolve the
+        # 180° ambiguity when only these two fiducials are measured.
         diff1 = fdpoints[4] - fdpoints[0]  # vector FD1 -> FD5
         diff2 = fdpoints[0] - fdpoints[4]  # vector FD5 -> FD1
-        angle1 = np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - PERPENDICULAR_CORRECTION_DEG
-        angle2 = np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - PERPENDICULAR_CORRECTION_DEG
+        angle1 = (np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
+        angle2 = (np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
         # Choose the angle closer to zero (i.e., resolve 180° ambiguity)
         if abs(angle1) < abs(angle2):
             angle = angle1
@@ -252,9 +254,9 @@ def calc_full_angle(fdpoints, comp_type, is_second=False, angle_pin=None) -> flo
     elif comp_type == 'module':
         diff1 = fdpoints[2] - fdpoints[5]
         diff2 = fdpoints[5] - fdpoints[2]
-        # Normalise to [-180, 180] to avoid out-of-range values after the -90° correction
-        angle1 = (np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - 90 + 180) % 360 - 180
-        angle2 = (np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - 90 + 180) % 360 - 180
+        # Normalise to [-180, 180] to avoid out-of-range values after the correction
+        angle1 = (np.degrees(np.arctan2(sign * diff1[1], sign * diff1[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
+        angle2 = (np.degrees(np.arctan2(sign * diff2[1], sign * diff2[0])) - PERPENDICULAR_CORRECTION_DEG + 180) % 360 - 180
         # Prefer the candidate closest to angle_pin (AngleOffset ≈ 0 for a well-placed module).
         # Fall back to closest-to-zero if angle_pin is not available.
         if angle_pin is not None:
@@ -262,7 +264,7 @@ def calc_full_angle(fdpoints, comp_type, is_second=False, angle_pin=None) -> flo
         else:
             chosen = angle1 if abs(angle1) <= abs(angle2) else angle2
         angle = chosen
-        logging.debug(f"Using Module Full angle (FD3/FD6, -90° corrected, normalised): {angle}")
+        logging.debug(f"Using Module Full angle (FD3/FD6, -{PERPENDICULAR_CORRECTION_DEG}° corrected, normalised): {angle}")
     else:
         logging.error(f"Component type {comp_type} not recognized for angle calculation.")
     return angle
